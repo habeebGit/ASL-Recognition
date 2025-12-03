@@ -1,0 +1,43 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+.venv/
+venv/
+
+# Editor directories and files
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Model artifacts (large)
+saved_model/
+trained_model/
+*.h5
+*.ckpt
+*.pb
+*.onnx
+model_weights/
+weights.*
+
+# Dataset / archives
+data/
+datasets/
+*.tar.gz
+*.zip
+
+# Logs and build
+*.log
+pip-wheel-metadata/
+*.dist-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Audio (comment out if you want to keep generated samples in the repo)
+# *.wav
