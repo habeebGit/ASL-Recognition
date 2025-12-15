@@ -9,16 +9,33 @@ class ASLModel:
     Input: sequence of keypoint feature vectors shaped (T, F)
     Output: softmax over (vocab + blank) per time-step
     """
-    def __init__(self, input_features=225, rnn_units=256, max_text_length=200):
-        self.input_features = input_features
-        self.rnn_units = rnn_units
-        self.max_text_length = max_text_length
+    def __init__(self, *args, num_features=None, feature_dim=None, input_dim=None, **kwargs):
+        """
+        Backwards-compatible constructor:
+        - Accepts positional single arg as feature dim: ASLModel(225)
+        - Accepts keyword names: num_features, feature_dim, input_dim
+        - Falls back to default 225
+        """
+        # If a single positional arg was given and no keyword provided, treat it as feature dim.
+        if num_features is None and feature_dim is None and input_dim is None and len(args) >= 1:
+            try:
+                num_features = int(args[0])
+            except Exception:
+                num_features = None
+
+        self.num_features = int(num_features or feature_dim or input_dim or 225)
+
+        # Keep any existing initialization logic that follows in the file.
+        # If the original class referenced a different attribute name, ensure it
+        # uses self.num_features when building the model (build_model should read this).
+        self.rnn_units = 256
+        self.max_text_length = 200
         self.model = None
         self.char_to_num = None
         self.num_to_char = None
 
     def build_model(self, vocab_size):
-        inp = layers.Input(shape=(None, self.input_features), name="input")
+        inp = layers.Input(shape=(None, self.num_features), name="input")
 
         # Optional small dense frontend to mix channels
         x = layers.TimeDistributed(layers.Dense(256, activation="relu"))(inp)
