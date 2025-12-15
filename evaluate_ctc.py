@@ -138,18 +138,78 @@ def main():
         model_path = Path(args.model)
         if model_path.exists():
             try:
-                model = tf.keras.models.load_model(str(model_path))
-                print("Loaded SavedModel from", model_path)
+                loaded = tf.keras.models.load_model(str(model_path))
+                # determine saved model input feature dimension (handles single-input models)
+                in_shape = loaded.input_shape
+                feat_dim_loaded = None
+                if isinstance(in_shape, (list, tuple)):
+                    in_shape0 = in_shape[0] if isinstance(in_shape, list) else in_shape
+                    feat_dim_loaded = in_shape0[-1] if in_shape0 is not None else None
+                else:
+                    feat_dim_loaded = None
+
+                if feat_dim_loaded is not None and feat_dim_loaded != F:
+                    print(f"SavedModel input feature-dim {feat_dim_loaded} != data feature-dim {F}; ignoring saved model and building ASLModel fallback.")
+                    loaded = None
+                else:
+                    model = loaded
+                    print("Loaded SavedModel from", model_path)
             except Exception as e:
                 print("Failed to load SavedModel:", e)
+
     if model is None:
-        # fallback: try to import ASLModel and build model with matching feature dim and vocab size
+        # fallback: build ASLModel with matching feature dim and vocab size
         try:
             from asl_model import ASLModel
             vocab_size = max(idx_to_char.keys()) if idx_to_char else 28
-            m = ASLModel(num_features=F)
-            m.build_model(vocab_size=vocab_size)
-            model = m.model
+
+            m = None
+            model = None
+
+            # Try several constructor patterns to be robust against different ASLModel APIs.
+            # Each factory either returns an instance or raises; we catch and continue.
+            def try_num_features(): return ASLModel(num_features=F)
+            def try_feature_dim(): return ASLModel(feature_dim=F)
+            def try_input_dim(): return ASLModel(input_dim=F)
+            def try_positional(): return ASLModel(F)
+            def try_no_args(): return ASLModel()
+
+            factories = [try_num_features, try_feature_dim, try_input_dim, try_positional, try_no_args]
+
+            for fn in factories:
+                try:
+                    inst = fn()
+                except TypeError:
+                    continue
+                except Exception:
+                    # other runtime errors likely indicate incompatible init; try next
+                    continue
+
+                # If the returned object is a Keras Model, use it directly.
+                if isinstance(inst, tf.keras.Model):
+                    model = inst
+                    break
+
+                # If object exposes build_model(), call it to construct internal model.
+                if hasattr(inst, "build_model"):
+                    try:
+                        inst.build_model(vocab_size=vocab_size)
+                    except TypeError:
+                        # some build_model signatures may be different; try without args
+                        try:
+                            inst.build_model()
+                        except Exception:
+                            pass
+                    m = inst
+                    break
+
+            if model is None and m is None:
+                raise RuntimeError("Failed to instantiate ASLModel with any known constructor signature.")
+
+            # prefer a direct keras.Model, otherwise extract .model attribute if present
+            if model is None:
+                model = m.model if hasattr(m, "model") else m
+
             print("Built ASLModel (random weights) as fallback")
         except Exception as e:
             raise SystemExit("No model available and failed to build fallback ASLModel: " + str(e))
