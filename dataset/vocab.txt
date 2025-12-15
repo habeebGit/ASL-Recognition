@@ -1,0 +1,10 @@
+hello
+help
+love
+name
+no
+please
+sorry
+stop
+thanks
+yes
